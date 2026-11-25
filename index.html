@@ -415,7 +415,7 @@ $('btnDisconnect').addEventListener('click', async () => {
 const MSG_PRESETS = {
   login: 'Sign in to the Slush pass-2 test harness.\n\nThis message is a test. It authorizes nothing.\nNonce: 1234567890',
   homoglyph: 'Sign in to slush\u200bwallet \u2014 session for \u0440\u0430ypal-style homoglyph check: the word after "to" contains a zero-width space, and "\u0440\u0430ypal" starts with Cyrillic letters. If the wallet renders this message faithfully you can spot both.',
-  blob: 'AAAACAAAAAAAACgAAACgxMGNj... (paste real base64 transaction bytes here for the C4 probe) ...',
+  blob: 'AAACAAjoAwAAAAAAAAAg1rtbItv6uMq6kAsTcl/1dTh9On2LmXGCSc1wxgcdxXwCAgABAQAAAQEDAAAAAAEBAP0Cy6+nT3C8DnS3sVys1aMLPIlvGaFl6ZJPfiZYfJIfAYO/SxxkzoxScPOlV47LkbgjmbutdtoEh2xITYXAsDxKAAAAAAAAAAAgAJQ1dwAAAAAOBQAArKysrKysrKysrKysrKysrKysrKz9Asuvp09wvA50t7FcrNWjCzyJbxmhZemST34mWHySH+gDAAAAAAAA4JctAAAAAAACAQ4FAAAAAAAAAQ8FAAAAAAAAAAAgTHitrPKi9a2A8n7X1UqmnTp48cpn/e+ez1dU9bi7d7B5Woc9',
 };
 document.querySelectorAll('.preset-msg').forEach((btn) => {
   btn.addEventListener('click', () => { $('messageText').value = MSG_PRESETS[btn.dataset.preset]; });
