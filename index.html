@@ -140,7 +140,7 @@ Nonce: 1234567890</textarea>
         Unknown fields (e.g. “_note”) are ignored by the builder.</label>
       <textarea id="txTransfer" class="tall">{
   "_note": "T1 probe: amountMist is MIST. Compare what the wallet displays (SUI?) against the MIST value actually signed.",
-  "recipient": "0xREPLACE_WITH_WALLET_B_ADDRESS",
+  "recipient": "0xd6bb5b22dbfab8caba900b13725ff575387d3a7d8b99718249cd70c6071dc57c",
   "amountMist": "1000"
 }</textarea>
       <div class="row">
@@ -543,13 +543,13 @@ $('btnFillRaw').addEventListener('click', async () => {
 const TX_PRESETS = {
   'transfer-dust': { tab: 'transfer', el: 'txTransfer', spec: {
     _note: 'Dust transfer: 1 MIST. Display should read 0.000000001 SUI.',
-    recipient: '0xREPLACE_WITH_WALLET_B_ADDRESS', amountMist: '1' } },
+    recipient: '0xd6bb5b22dbfab8caba900b13725ff575387d3a7d8b99718249cd70c6071dc57c', amountMist: '1' } },
   'transfer-1sui': { tab: 'transfer', el: 'txTransfer', spec: {
     _note: 'Exactly 1 SUI = 1000000000 MIST. T1: check the wallet does not display 1000000000 of anything.',
-    recipient: '0xREPLACE_WITH_WALLET_B_ADDRESS', amountMist: '1000000000' } },
+    recipient: '0xd6bb5b22dbfab8caba900b13725ff575387d3a7d8b99718249cd70c6071dc57c', amountMist: '1000000000' } },
   'transfer-gasowner': { tab: 'transfer', el: 'txTransfer', spec: {
     _note: 'C3 probe: gasOwner (sponsor) is a different address than the sender. Does the wallet display the sponsor arrangement?',
-    recipient: '0xREPLACE_WITH_WALLET_B_ADDRESS', amountMist: '1000',
+    recipient: '0xd6bb5b22dbfab8caba900b13725ff575387d3a7d8b99718249cd70c6071dc57c', amountMist: '1000',
     gasOwner: '0xREPLACE_WITH_SPONSOR_ADDRESS' } },
   'movecall-sender': { tab: 'movecall', el: 'txMoveCall', spec: {
     _note: 'Harmless no-op call: returns the sender address, moves no funds.',
