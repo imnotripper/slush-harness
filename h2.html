@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slush Pass-2 Test Harness — UNTRUSTED dApp Simulator</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         background: #101418; color: #e6edf3; }
+  header { background: #7a1113; color: #fff; padding: 10px 16px; }
+  header h1 { margin: 0; font-size: 17px; }
+  header p { margin: 4px 0 0; font-size: 13px; }
+  main { display: grid; grid-template-columns: minmax(430px, 1fr) minmax(430px, 1fr);
+         gap: 12px; padding: 12px; align-items: start; }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  section { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+            padding: 12px 14px; margin-bottom: 12px; }
+  section h2 { margin: 0 0 8px; font-size: 15px; color: #79c0ff; }
+  section h3 { margin: 12px 0 6px; font-size: 13px; color: #d2a8ff; }
+  label { display: block; font-size: 12px; color: #9da7b1; margin: 8px 0 4px; }
+  input[type="text"], select, textarea { width: 100%; background: #0d1117; color: #e6edf3;
+    border: 1px solid #30363d; border-radius: 6px; padding: 7px 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  textarea { min-height: 92px; resize: vertical; }
+  textarea.tall { min-height: 170px; }
+  button { background: #1f6feb; color: #fff; border: 0; border-radius: 6px;
+           padding: 7px 12px; font-size: 13px; cursor: pointer; margin: 4px 6px 4px 0; }
+  button:hover { background: #388bfd; }
+  button.secondary { background: #30363d; }
+  button.danger { background: #a40e26; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px;
+          word-break: break-all; }
+  .small { font-size: 12px; color: #9da7b1; }
+  .warn { color: #ffa657; }
+  .ok { color: #3fb950; }
+  .acct { border: 1px solid #30363d; border-radius: 6px; padding: 6px 8px; margin: 4px 0;
+          cursor: pointer; }
+  .acct.selected { border-color: #1f6feb; background: #0d2137; }
+  #log { background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+         height: 640px; overflow-y: auto; padding: 8px; font-size: 12px; }
+  .entry { border-bottom: 1px solid #21262d; padding: 6px 2px; }
+  .entry .ts { color: #6e7681; }
+  .entry .tag { font-weight: 700; padding: 0 5px; border-radius: 3px; margin-right: 6px; }
+  .tag-request  { background: #1f6feb; color: #fff; }
+  .tag-response { background: #238636; color: #fff; }
+  .tag-error    { background: #a40e26; color: #fff; }
+  .tag-info     { background: #30363d; color: #e6edf3; }
+  .tag-event    { background: #8957e5; color: #fff; }
+  .entry pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word;
+               font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px;
+               color: #c9d1d9; }
+  .sticky { position: sticky; top: 12px; }
+  .tabs button { background: #21262d; }
+  .tabs button.active { background: #1f6feb; }
+  .tabpage { display: none; }
+  .tabpage.active { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚠ UNTRUSTED TEST PAGE — Slush Wallet pass-2 harness (P3)</h1>
+  <p>This page simulates a <b>malicious / sloppy dApp</b> for authorised HackenProof testing.
+     TESTNET ONLY · own wallets only · every request and response is logged verbatim below.</p>
+</header>
+
+<main>
+<div>
+  <!-- ============ 0. SETUP / ORIGIN ============ -->
+  <section>
+    <h2>0. Origin &amp; setup (C6 reference)</h2>
+    <div class="small">Compare these values against what the wallet prompt claims is asking:</div>
+    <div class="mono">origin: <b id="originValue"></b></div>
+    <div class="mono">href:&nbsp;&nbsp; <span id="hrefValue"></span></div>
+    <label for="appName">dApp name passed to <span class="mono">registerSlushWallet(name)</span>
+      (this is what Slush shows as the requesting app — edit it for C6 display tests)</label>
+    <input type="text" id="appName" value="Slush Pass-2 Test Harness (UNTRUSTED)">
+    <label for="network">Network (sent as the Wallet Standard <span class="mono">chain</span> on every request)</label>
+    <select id="network">
+      <option value="testnet" selected>testnet (default)</option>
+      <option value="mainnet">mainnet</option>
+      <option value="devnet">devnet</option>
+    </select>
+    <div class="row" style="margin-top:8px">
+      <button id="btnRegister">Register Slush wallet (SDK)</button>
+      <button id="btnRefreshWallets" class="secondary">Refresh discovered wallets</button>
+    </div>
+    <label for="walletPicker">Active wallet (Wallet Standard discovery — includes the Slush
+      extension if installed; the SDK-registered web wallet is named “Slush”)</label>
+    <select id="walletPicker"></select>
+    <div id="walletInfo" class="small">No wallet selected yet.</div>
+  </section>
+
+  <!-- ============ 1. CONNECT ============ -->
+  <section>
+    <h2>1. Connect (C5 / C6)</h2>
+    <div class="row">
+      <button id="btnConnect">Connect</button>
+      <button id="btnDisconnect" class="secondary">Disconnect</button>
+    </div>
+    <div id="accountsBox" class="small">Not connected.</div>
+  </section>
+
+  <!-- ============ 2. SIGN PERSONAL MESSAGE ============ -->
+  <section>
+    <h2>2. signPersonalMessage (C4)</h2>
+    <label for="messageText">Message (UTF-8 encoded exactly as written — fully editable)</label>
+    <textarea id="messageText">Sign in to the Slush pass-2 test harness.
+
+This message is a test. It authorizes nothing.
+Nonce: 1234567890</textarea>
+    <div class="row">
+      <button class="secondary preset-msg" data-preset="login">Preset: login</button>
+      <button class="secondary preset-msg" data-preset="homoglyph">Preset: homoglyph / zero-width (C6)</button>
+      <button class="secondary preset-msg" data-preset="blob">Preset: base64 blob (C4)</button>
+    </div>
+    <div class="row">
+      <button id="btnSignMessage">signPersonalMessage</button>
+    </div>
+    <p class="small">C4 probe: paste a payload that is itself meaningful elsewhere
+      (e.g. serialised transaction bytes in base64, or another service's auth text) and check
+      whether the wallet renders it readably or signs it blind.</p>
+  </section>
+
+  <!-- ============ 3. TRANSACTIONS ============ -->
+  <section>
+    <h2>3. Transactions (C1 / C2 / C3 / T1 / T3)</h2>
+    <div class="row tabs" id="txTabs">
+      <button data-tab="transfer" class="active">Transfer SUI</button>
+      <button data-tab="movecall">Move call</button>
+      <button data-tab="raw">Raw tx JSON (C3)</button>
+    </div>
+
+    <div class="tabpage active" id="tab-transfer">
+      <label for="txTransfer">Transfer spec (JSON). Fields: recipient, amountMist
+        (string, in MIST — 1 SUI = 1000000000), optional coinObjectId, sender, gasBudget, gasOwner.
+        Unknown fields (e.g. “_note”) are ignored by the builder.</label>
+      <textarea id="txTransfer" class="tall">{
+  "_note": "T1 probe: amountMist is MIST. Compare what the wallet displays (SUI?) against the MIST value actually signed.",
+  "recipient": "0xd6bb5b22dbfab8caba900b13725ff575387d3a7d8b99718249cd70c6071dc57c",
+  "amountMist": "1000"
+}</textarea>
+      <div class="row">
+        <button class="secondary preset-tx" data-preset="transfer-dust">Preset: 1 MIST dust</button>
+        <button class="secondary preset-tx" data-preset="transfer-1sui">Preset: 1 SUI (1000000000)</button>
+        <button class="secondary preset-tx" data-preset="transfer-gasowner">Preset: foreign gasOwner (C3 sponsor probe)</button>
+      </div>
+    </div>
+
+    <div class="tabpage" id="tab-movecall">
+      <label for="txMoveCall">Move call spec (JSON). Fields: target
+        (“0xPACKAGE::module::function”), typeArguments[], arguments[] — each argument is
+        {kind:"pure", type:"u64|u128|u256|u8|u16|u32|bool|string|address|id|vector&lt;T&gt;|option&lt;T&gt;", value},
+        {kind:"object", id:"0x…"}, {kind:"sharedObject", id, initialSharedVersion, mutable}, or {kind:"gasCoin"}.
+        Optional: sender, gasBudget, gasOwner.</label>
+      <textarea id="txMoveCall" class="tall">{
+  "_note": "Harmless no-op call: returns the sender address, moves no funds.",
+  "target": "0x2::tx_context::sender",
+  "typeArguments": [],
+  "arguments": []
+}</textarea>
+      <div class="row">
+        <button class="secondary preset-tx" data-preset="movecall-sender">Preset: tx_context::sender</button>
+        <button class="secondary preset-tx" data-preset="movecall-pay">Preset: pay::split_and_transfer (C1/C2 crafting base)</button>
+        <button class="secondary preset-tx" data-preset="movecall-destroy">Preset: coin::destroy_zero (object arg)</button>
+      </div>
+    </div>
+
+    <div class="tabpage" id="tab-raw">
+      <label for="txRaw">Full serialised transaction JSON (as produced by Transaction.toJSON()).
+        Fed to Transaction.from(...) untouched — for C3 blind-signing probes with fields a
+        normal builder UI would never produce.</label>
+      <textarea id="txRaw" class="tall" placeholder="Paste serialised transaction JSON here, or use the button below to fill it from the current Transfer/Move-call tab."></textarea>
+      <div class="row">
+        <button class="secondary" id="btnFillRaw">Fill from current tab's toJSON()</button>
+      </div>
+    </div>
+
+    <label><input type="checkbox" id="setSender" checked>
+      Set sender to the connected account before signing (standard dApp behaviour)</label>
+    <div class="row" style="margin-top:6px">
+      <button id="btnPreview" class="secondary">Build &amp; preview toJSON()</button>
+      <button id="btnSignTx">signTransaction</button>
+      <button id="btnSignExecTx" class="danger">signAndExecuteTransaction</button>
+    </div>
+    <p class="small">The preview shows the exact serialised transaction the wallet receives
+      (the Wallet Standard input is an object whose <span class="mono">toJSON()</span> returns this string).
+      Diff it against what the wallet prompt displays — that diff is C1/C2/C3.</p>
+  </section>
+</div>
+
+  <!-- ============ 4. LOG ============ -->
+  <section class="sticky">
+    <h2>4. Log — every request &amp; response, verbatim</h2>
+    <div class="row">
+      <button id="btnClearLog" class="secondary">Clear</button>
+      <button id="btnCopyLog" class="secondary">Copy log</button>
+      <label style="margin:0"><input type="checkbox" id="autoScroll" checked> auto-scroll</label>
+    </div>
+    <div id="log"></div>
+  </section>
+</main>
+
+<script type="importmap">
+{
+  "imports": {
+    "@mysten/slush-wallet": "https://esm.sh/@mysten/slush-wallet@2.0.1?deps=@mysten/sui@3.0.1",
+    "@mysten/sui/transactions": "https://esm.sh/@mysten/sui@3.0.1/transactions",
+    "@wallet-standard/app": "https://esm.sh/@wallet-standard/app@1.1.0"
+  }
+}
+</script>
+
+<script type="module">
+import { registerSlushWallet, SLUSH_WALLET_NAME } from '@mysten/slush-wallet';
+import { Transaction } from '@mysten/sui/transactions';
+import { getWallets } from '@wallet-standard/app';
+
+/* ================= state ================= */
+let activeWallet = null;      // Wallet Standard wallet object in use
+let activeAccount = null;     // selected WalletAccount
+let registered = null;        // { wallet, unregister } from registerSlushWallet
+let eventsUnsubscribe = null;
+const discovered = new Map(); // key -> wallet
+
+const $ = (id) => document.getElementById(id);
+$('originValue').textContent = window.location.origin;
+$('hrefValue').textContent = window.location.href;
+
+/* ================= logging ================= */
+function bytesToHex(bytes) {
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+function bytesToBase64(bytes) {
+  let s = '';
+  bytes.forEach((b) => { s += String.fromCharCode(b); });
+  return btoa(s);
+}
+function replacer(_key, val) {
+  if (val instanceof Uint8Array) {
+    return { $type: 'Uint8Array', length: val.length, base64: bytesToBase64(val), hex: bytesToHex(val) };
+  }
+  if (typeof val === 'bigint') return val.toString() + 'n';
+  if (val instanceof Error) return { name: val.name, message: val.message, stack: val.stack };
+  return val;
+}
+function stringify(val) {
+  if (val === undefined) return 'undefined';
+  if (typeof val === 'string') return val;
+  try { return JSON.stringify(val, replacer, 2); } catch { return String(val); }
+}
+function log(kind, title, data) {
+  const box = $('log');
+  const div = document.createElement('div');
+  div.className = 'entry';
+  const ts = new Date().toISOString();
+  const head = document.createElement('div');
+  head.innerHTML = '<span class="ts"></span><span class="tag"></span><b></b>';
+  head.querySelector('.ts').textContent = ts;
+  const tag = head.querySelector('.tag');
+  tag.textContent = kind.toUpperCase();
+  tag.className = 'tag tag-' + kind;
+  head.querySelector('b').textContent = title;
+  div.appendChild(head);
+  if (data !== undefined) {
+    const pre = document.createElement('pre');
+    pre.textContent = stringify(data);
+    div.appendChild(pre);
+  }
+  box.appendChild(div);
+  while (box.children.length > 400) box.removeChild(box.firstChild);
+  if ($('autoScroll').checked) box.scrollTop = box.scrollHeight;
+}
+function logError(context, err) {
+  const detail = err instanceof Error
+    ? { name: err.name, message: err.message, stack: err.stack, ...err }
+    : err;
+  log('error', context, detail);
+}
+$('btnClearLog').addEventListener('click', () => { $('log').innerHTML = ''; });
+$('btnCopyLog').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('log').innerText); log('info', 'Log copied to clipboard'); }
+  catch (e) { logError('Copy log failed', e); }
+});
+
+/* ================= helpers ================= */
+function currentChain() { return 'sui:' + $('network').value; }
+function requireWallet() {
+  if (!activeWallet) throw new Error('No active wallet. Register the Slush wallet / pick a discovered wallet first.');
+  return activeWallet;
+}
+function requireAccount() {
+  if (!activeAccount) throw new Error('Not connected. Click Connect and approve in the wallet first.');
+  return activeAccount;
+}
+function describeWallet(w) {
+  return {
+    name: w.name, version: w.version, chains: w.chains,
+    features: Object.keys(w.features || {}),
+    accounts: (w.accounts || []).map((a) => a.address),
+  };
+}
+
+/* ================= wallet discovery ================= */
+const walletsApi = getWallets();
+function walletKey(w) { return w.name + '|' + w.version; }
+function refreshDiscovery(selectName) {
+  for (const w of walletsApi.get()) discovered.set(walletKey(w), w);
+  if (registered && registered.wallet) discovered.set(walletKey(registered.wallet), registered.wallet);
+  const picker = $('walletPicker');
+  const prev = selectName || picker.value;
+  picker.innerHTML = '';
+  for (const [key, w] of discovered) {
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = w.name + ' (v' + w.version + ')';
+    picker.appendChild(opt);
+  }
+  if (prev && discovered.has(prev)) picker.value = prev;
+  else if (discovered.size) {
+    const slushKey = [...discovered.keys()].find((k) => discovered.get(k).name === SLUSH_WALLET_NAME);
+    picker.value = slushKey || [...discovered.keys()][0];
+  }
+  setActiveWallet(picker.value ? discovered.get(picker.value) : null, /*silent=*/true);
+}
+function setActiveWallet(w, silent) {
+  if (eventsUnsubscribe) { try { eventsUnsubscribe(); } catch { /* noop */ } eventsUnsubscribe = null; }
+  activeWallet = w || null;
+  activeAccount = null;
+  renderAccounts();
+  if (!w) { $('walletInfo').textContent = 'No wallet selected yet.'; return; }
+  $('walletInfo').textContent = '';
+  const pre = document.createElement('pre');
+  pre.className = 'mono';
+  pre.textContent = stringify(describeWallet(w));
+  $('walletInfo').appendChild(pre);
+  if (!silent) log('info', 'Active wallet set', describeWallet(w));
+  const events = w.features && w.features['standard:events'];
+  if (events && typeof events.on === 'function') {
+    eventsUnsubscribe = events.on('change', (chg) => {
+      log('event', 'standard:events → change', chg);
+      if (chg.accounts && chg.accounts.length) { activeAccount = chg.accounts[0]; }
+      renderAccounts();
+    });
+  }
+  if (w.accounts && w.accounts.length) { activeAccount = w.accounts[0]; renderAccounts(); }
+}
+walletsApi.on('register', (w) => { log('event', 'Wallet Standard: wallet registered', describeWallet(w)); refreshDiscovery(); });
+walletsApi.on('unregister', (w) => { log('event', 'Wallet Standard: wallet unregistered', { name: w.name }); discovered.delete(walletKey(w)); refreshDiscovery(); });
+$('walletPicker').addEventListener('change', () => setActiveWallet(discovered.get($('walletPicker').value)));
+$('btnRefreshWallets').addEventListener('click', () => { refreshDiscovery(); log('info', 'Discovery refreshed', [...discovered.values()].map(describeWallet)); });
+
+/* ================= registration ================= */
+function doRegister() {
+  const name = $('appName').value || 'Slush Pass-2 Test Harness';
+  log('request', 'registerSlushWallet(name) — SDK registration', { name, note: 'No origin/metadataApiUrl overrides; SDK defaults apply (web wallet at my.slush.app).' });
+  try {
+    registered = registerSlushWallet(name);
+    if (!registered) {
+      log('error', 'registerSlushWallet returned undefined (SDK declined to register in this environment)');
+      return;
+    }
+    log('response', 'registerSlushWallet → { wallet, unregister }', describeWallet(registered.wallet));
+    refreshDiscovery(walletKey(registered.wallet));
+  } catch (e) { logError('registerSlushWallet threw', e); }
+}
+$('btnRegister').addEventListener('click', doRegister);
+
+/* ================= connect ================= */
+function renderAccounts() {
+  const box = $('accountsBox');
+  box.innerHTML = '';
+  const accounts = activeWallet ? (activeWallet.accounts || []) : [];
+  if (!accounts.length) { box.textContent = 'Not connected.'; return; }
+  accounts.forEach((a, i) => {
+    const div = document.createElement('div');
+    div.className = 'acct' + (activeAccount && a.address === activeAccount.address ? ' selected' : '');
+    div.innerHTML = '<div class="mono"></div><div class="small"></div>';
+    div.querySelector('.mono').textContent = a.address;
+    div.querySelector('.small').textContent =
+      'chains: ' + (a.chains || []).join(', ') + ' · features: ' + (a.features || []).join(', ');
+    div.title = 'Click to select this account';
+    div.addEventListener('click', () => { activeAccount = a; log('info', 'Selected account', { address: a.address }); renderAccounts(); });
+    box.appendChild(div);
+    if (!activeAccount && i === 0) activeAccount = a;
+  });
+}
+$('btnConnect').addEventListener('click', async () => {
+  try {
+    const w = requireWallet();
+    const feature = w.features['standard:connect'];
+    if (!feature) throw new Error('Active wallet has no standard:connect feature');
+    log('request', 'standard:connect → connect()', { wallet: w.name, dappOrigin: window.location.origin });
+    const out = await feature.connect();
+    log('response', 'standard:connect → { accounts }', out);
+    if (out.accounts && out.accounts.length) activeAccount = out.accounts[0];
+    renderAccounts();
+  } catch (e) { logError('connect failed / rejected', e); }
+});
+$('btnDisconnect').addEventListener('click', async () => {
+  try {
+    const w = requireWallet();
+    const feature = w.features['standard:disconnect'];
+    if (!feature) throw new Error('Active wallet has no standard:disconnect feature');
+    log('request', 'standard:disconnect → disconnect()', { wallet: w.name });
+    const out = await feature.disconnect();
+    log('response', 'standard:disconnect → done', out === undefined ? '(undefined)' : out);
+    activeAccount = null; renderAccounts();
+  } catch (e) { logError('disconnect failed', e); }
+});
+
+/* ================= signPersonalMessage ================= */
+const MSG_PRESETS = {
+  login: 'Sign in to the Slush pass-2 test harness.\n\nThis message is a test. It authorizes nothing.\nNonce: 1234567890',
+  homoglyph: 'Sign in to slush\u200bwallet \u2014 session for \u0440\u0430ypal-style homoglyph check: the word after "to" contains a zero-width space, and "\u0440\u0430ypal" starts with Cyrillic letters. If the wallet renders this message faithfully you can spot both.',
+  blob: 'AAACAAjoAwAAAAAAAAAg1rtbItv6uMq6kAsTcl/1dTh9On2LmXGCSc1wxgcdxXwCAgABAQAAAQEDAAAAAAEBAP0Cy6+nT3C8DnS3sVys1aMLPIlvGaFl6ZJPfiZYfJIfAYO/SxxkzoxScPOlV47LkbgjmbutdtoEh2xITYXAsDxKAAAAAAAAAAAgAJQ1dwAAAAAOBQAArKysrKysrKysrKysrKysrKysrKz9Asuvp09wvA50t7FcrNWjCzyJbxmhZemST34mWHySH+gDAAAAAAAA4JctAAAAAAACAQ4FAAAAAAAAAQ8FAAAAAAAAAAAgTHitrPKi9a2A8n7X1UqmnTp48cpn/e+ez1dU9bi7d7B5Woc9',
+};
+document.querySelectorAll('.preset-msg').forEach((btn) => {
+  btn.addEventListener('click', () => { $('messageText').value = MSG_PRESETS[btn.dataset.preset]; });
+});
+$('btnSignMessage').addEventListener('click', async () => {
+  try {
+    const w = requireWallet();
+    const account = requireAccount();
+    const feature = w.features['sui:signPersonalMessage'];
+    if (!feature) throw new Error('Active wallet has no sui:signPersonalMessage feature');
+    const text = $('messageText').value;
+    const message = new TextEncoder().encode(text);
+    const input = { message, account, chain: currentChain() };
+    log('request', 'sui:signPersonalMessage → signPersonalMessage(input)', {
+      featureVersion: feature.version, account: account.address, chain: input.chain,
+      messageUtf8: text, messageBytes: message,
+    });
+    const out = await feature.signPersonalMessage(input);
+    log('response', 'sui:signPersonalMessage → { bytes, signature }', out);
+  } catch (e) { logError('signPersonalMessage failed / rejected', e); }
+});
+
+/* ================= transaction building ================= */
+let activeTxTab = 'transfer';
+document.querySelectorAll('#txTabs button').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    activeTxTab = btn.dataset.tab;
+    document.querySelectorAll('#txTabs button').forEach((b) => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.tabpage').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + activeTxTab));
+  });
+});
+function parseSpec(textareaId) {
+  const raw = $(textareaId).value;
+  try { return JSON.parse(raw); }
+  catch (e) { throw new Error('Invalid JSON in ' + textareaId + ': ' + e.message); }
+}
+function pureArg(tx, type, value) {
+  if (type.startsWith('vector<') && type.endsWith('>')) {
+    return tx.pure.vector(type.slice(7, -1), value);
+  }
+  if (type.startsWith('option<') && type.endsWith('>')) {
+    return tx.pure.option(type.slice(7, -1), value === undefined ? null : value);
+  }
+  switch (type) {
+    case 'u8': return tx.pure.u8(Number(value));
+    case 'u16': return tx.pure.u16(Number(value));
+    case 'u32': return tx.pure.u32(Number(value));
+    case 'u64': return tx.pure.u64(value);
+    case 'u128': return tx.pure.u128(value);
+    case 'u256': return tx.pure.u256(value);
+    case 'bool': return tx.pure.bool(value === true || value === 'true');
+    case 'string': return tx.pure.string(String(value));
+    case 'address': return tx.pure.address(String(value));
+    case 'id': case 'objectId': return tx.pure.id(String(value));
+    default: return tx.pure(type, value);
+  }
+}
+function buildArgument(tx, spec) {
+  switch (spec && spec.kind) {
+    case 'pure': return pureArg(tx, spec.type, spec.value);
+    case 'object': return tx.object(spec.id);
+    case 'sharedObject': return tx.sharedObjectRef({
+      objectId: spec.id, initialSharedVersion: spec.initialSharedVersion, mutable: !!spec.mutable,
+    });
+    case 'gasCoin': return tx.gas;
+    default: throw new Error('Unknown argument kind: ' + stringify(spec));
+  }
+}
+function applyCommon(tx, spec) {
+  if (spec.sender) tx.setSender(spec.sender);
+  else if ($('setSender').checked && activeAccount) tx.setSender(activeAccount.address);
+  if (spec.gasBudget !== undefined) tx.setGasBudget(spec.gasBudget);
+  if (spec.gasOwner) tx.setGasOwner(spec.gasOwner);
+}
+async function buildTransaction() {
+  if (activeTxTab === 'raw') {
+    const rawText = $('txRaw').value.trim();
+    if (!rawText) throw new Error('Raw tab is empty — paste serialised transaction JSON first.');
+    const tx = Transaction.from(rawText);
+    log('info', 'Raw transaction parsed via Transaction.from(serialised JSON)');
+    return tx;
+  }
+  const tx = new Transaction();
+  if (activeTxTab === 'transfer') {
+    const spec = parseSpec('txTransfer');
+    if (!spec.recipient) throw new Error('Transfer spec needs "recipient"');
+    if (spec.amountMist === undefined) throw new Error('Transfer spec needs "amountMist"');
+    const source = spec.coinObjectId ? tx.object(spec.coinObjectId) : tx.gas;
+    const [coin] = tx.splitCoins(source, [tx.pure.u64(spec.amountMist)]);
+    tx.transferObjects([coin], spec.recipient);
+    applyCommon(tx, spec);
+    log('info', 'Built transfer transaction from spec', spec);
+    return tx;
+  }
+  // movecall
+  const spec = parseSpec('txMoveCall');
+  if (!spec.target) throw new Error('Move call spec needs "target"');
+  tx.moveCall({
+    target: spec.target,
+    typeArguments: spec.typeArguments || [],
+    arguments: (spec.arguments || []).map((a) => buildArgument(tx, a)),
+  });
+  applyCommon(tx, spec);
+  log('info', 'Built move-call transaction from spec', spec);
+  return tx;
+}
+async function previewTx() {
+  const tx = await buildTransaction();
+  const json = await tx.toJSON();
+  log('info', 'Transaction.toJSON() — the exact serialised form the wallet receives', json);
+  return { tx, json };
+}
+$('btnPreview').addEventListener('click', async () => {
+  try { await previewTx(); } catch (e) { logError('Build/preview failed', e); }
+});
+$('btnFillRaw').addEventListener('click', async () => {
+  try {
+    const { json } = await previewTx();
+    $('txRaw').value = json;
+    document.querySelector('#txTabs button[data-tab="raw"]').click();
+    log('info', 'Raw tab filled from toJSON(). Edit freely, then sign from the Raw tab.');
+  } catch (e) { logError('Fill raw failed', e); }
+});
+
+const TX_PRESETS = {
+  'transfer-dust': { tab: 'transfer', el: 'txTransfer', spec: {
+    _note: 'Dust transfer: 1 MIST. Display should read 0.000000001 SUI.',
+    recipient: '0xd6bb5b22dbfab8caba900b13725ff575387d3a7d8b99718249cd70c6071dc57c', amountMist: '1' } },
+  'transfer-1sui': { tab: 'transfer', el: 'txTransfer', spec: {
+    _note: 'Exactly 1 SUI = 1000000000 MIST. T1: check the wallet does not display 1000000000 of anything.',
+    recipient: '0xd6bb5b22dbfab8caba900b13725ff575387d3a7d8b99718249cd70c6071dc57c', amountMist: '1000000000' } },
+  'transfer-gasowner': { tab: 'transfer', el: 'txTransfer', spec: {
+    _note: 'C3 probe: gasOwner (sponsor) is a different address than the sender. Does the wallet display the sponsor arrangement?',
+    recipient: '0xd6bb5b22dbfab8caba900b13725ff575387d3a7d8b99718249cd70c6071dc57c', amountMist: '1000',
+    gasOwner: '0xREPLACE_WITH_SPONSOR_ADDRESS' } },
+  'movecall-sender': { tab: 'movecall', el: 'txMoveCall', spec: {
+    _note: 'Harmless no-op call: returns the sender address, moves no funds.',
+    target: '0x2::tx_context::sender', typeArguments: [], arguments: [] } },
+  'movecall-pay': { tab: 'movecall', el: 'txMoveCall', spec: {
+    _note: 'C1/C2 crafting base: the coin, amount and RECIPIENT all ride in arguments. Edit the pure address argument to differ from anything a dApp page claims it is sending to.',
+    target: '0x2::pay::split_and_transfer', typeArguments: ['0x2::sui::SUI'],
+    arguments: [
+      { kind: 'object', id: '0xREPLACE_WITH_COIN_OBJECT_ID' },
+      { kind: 'pure', type: 'u64', value: '1000' },
+      { kind: 'pure', type: 'address', value: '0xREPLACE_WITH_RECIPIENT_ADDRESS' },
+    ] } },
+  'movecall-destroy': { tab: 'movecall', el: 'txMoveCall', spec: {
+    _note: 'Object-argument example. destroy_zero only succeeds on a zero-balance coin you own.',
+    target: '0x2::coin::destroy_zero', typeArguments: ['0x2::sui::SUI'],
+    arguments: [{ kind: 'object', id: '0xREPLACE_WITH_EMPTY_COIN_OBJECT_ID' }] } },
+};
+document.querySelectorAll('.preset-tx').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const p = TX_PRESETS[btn.dataset.preset];
+    $(p.el).value = JSON.stringify(p.spec, null, 2);
+    log('info', 'Loaded preset ' + btn.dataset.preset + ' into the ' + p.tab + ' tab');
+  });
+});
+
+/* ================= sign / execute ================= */
+async function signTx(execute) {
+  const w = requireWallet();
+  const account = requireAccount();
+  const featureName = execute ? 'sui:signAndExecuteTransaction' : 'sui:signTransaction';
+  const feature = w.features[featureName];
+  if (!feature) throw new Error('Active wallet has no ' + featureName + ' feature');
+  const { tx, json } = await previewTx();
+  const input = { transaction: tx, account, chain: currentChain() };
+  log('request', featureName + ' → input', {
+    featureVersion: feature.version, account: account.address, chain: input.chain,
+    transactionJSON: json,
+    note: 'Wallet Standard passes the Transaction object; the wallet serialises it via toJSON(). The string above is that serialisation.',
+  });
+  const out = execute
+    ? await feature.signAndExecuteTransaction(input)
+    : await feature.signTransaction(input);
+  log('response', featureName + ' → output', out);
+  return out;
+}
+$('btnSignTx').addEventListener('click', async () => {
+  try { await signTx(false); } catch (e) { logError('signTransaction failed / rejected', e); }
+});
+$('btnSignExecTx').addEventListener('click', async () => {
+  try { await signTx(true); } catch (e) { logError('signAndExecuteTransaction failed / rejected', e); }
+});
+
+/* ================= boot ================= */
+log('info', 'Harness loaded', {
+  origin: window.location.origin, href: window.location.href,
+  userAgent: navigator.userAgent, defaultChain: currentChain(),
+  note: 'Registering the Slush web wallet via the SDK…',
+});
+doRegister();
+refreshDiscovery();
+</script>
+</body>
+</html>
